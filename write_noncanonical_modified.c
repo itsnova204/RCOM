@@ -125,8 +125,8 @@ int main(int argc, char *argv[])
     //buf[3] = buf[1] ^ buf[2];
     //buf[4] = buf[0];
 
-    int bytes = write(fd, buf, BUF_SIZE);
-    printf("%d bytes written\n", bytes);
+    // int bytes = write(fd, buf, BUF_SIZE);
+    // printf("%d bytes written\n", bytes);
 
     // Wait until all bytes have been written to the serial port
     // Wait for UA
@@ -147,6 +147,8 @@ int main(int argc, char *argv[])
     {
          if (alarmEnabled == FALSE)
         {
+            int bytes = write(fd, buf, BUF_SIZE);
+            printf("%d bytes written\n", bytes);
             alarm(2);
             alarmEnabled = TRUE;
         }
@@ -167,7 +169,7 @@ int main(int argc, char *argv[])
     }
     
     if(alarmCount >= 4){
-        printf("smh went wrong");
+        printf("smh went wrong\n");
     }
     
     if(STOP){

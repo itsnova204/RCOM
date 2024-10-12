@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
     int currentChar = 0;
     int readingFrame = 0;    
 
-    char bytes;
+    //char bytes;
     while (STOP == FALSE){
         // Returns after 5 chars have been input
         int bytes = read(fd, buf, 1);
