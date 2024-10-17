@@ -17,7 +17,15 @@ int llopen(LinkLayer connectionParameters)
         return -1;
     }
 
-    // TODO
+    if (connectionParameters.role == LlTx)
+    {
+        Frame frame = createControlFrame(SET, LlTx);
+    }
+    else if (connectionParameters.role == LlRx)
+    {
+        /* code */
+    }
+    
 
     return 1;
 }
