@@ -8,9 +8,9 @@
 #include "application_layer.h"
 #include "link_layer.h"
 
-#define ESC_OCTET 0x7d
-#define FLAG 0x7e
-#define XOR_OCTET 0x20
+#define MAX_PACKET_SIZE 2037 //1+1+2+256*8+255
+#define TRUE 1
+#define FALSE 0
 
 typedef struct {
     int value;      // integer value
@@ -72,25 +72,48 @@ Result getDataPacket(unsigned char *buf, int buf_size, int sequence_number)
     return r;
 }
 
+int parsePacket(unsigned char *packet, int size, FILE* fptr)
+{
+    switch (packet[0])
+    {
+    case 1:
+        //get attrs
+        return 1;
+    case 2:
+        int Ls = 256*packet[2]+packet[3];
+        for(int i=0;i<Ls+4;i++){
+            printf("%x",packet[i]);
+        }
+        printf("\n");
+        fwrite(&packet[4],1,Ls,fptr);
+        return 2;
+    case 3:
+        //get & check attrs
+        return 3;
+    default:
+        return -1;
+    }
+}
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *file_name)
 {
-    if(strcmp(role,"tx") == 0){
-        FILE* fptr;
-        fptr = fopen(file_name, "rb");
+    LinkLayer connectionParameters;
+    strcpy(connectionParameters.serialPort, serialPort);
+    connectionParameters.role = *role;
+    connectionParameters.baudRate = baudRate;
+    connectionParameters.nRetransmissions = nTries;
+    connectionParameters.timeout = timeout;
 
-        LinkLayer connectionParameters;
-        strcpy(connectionParameters.serialPort, serialPort);
-        connectionParameters.role = *role;
-        connectionParameters.baudRate = baudRate;
-        connectionParameters.nRetransmissions = nTries;
-        connectionParameters.timeout = timeout;
-
-        if(llopen(connectionParameters) < 0){
+    if(llopen(connectionParameters) < 0){
             printf("Couldnt open the connection\n");
             exit(-1);
         }
-        
+
+    if(strcmp(role,"tx") == 0){
+        FILE* fptr;
+        fptr = fopen(file_name, "rb");
+    
         fseek(fptr, 0, SEEK_END);
         long file_size = ftell(fptr);
         fseek(fptr, 0, SEEK_SET);
@@ -104,18 +127,54 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char* buffer = (unsigned char*)malloc(buffer_size * sizeof(unsigned char));
 
         Result r = getControlPacket(1, file_name, file_size);
-        llwrite(r.pointer, r.value);
+        //llwrite(r.pointer, r.value);
+
+                        FILE *ftest;
+                        ftest = fopen("penguin-rec-test.gif", "wb");
 
         int sequence = 0;
-        while(fread(buffer,1,  buffer_size, fptr) > 0){
-            r = getDataPacket(buffer, buffer_size, sequence);
+        int actual_size;
+        while((actual_size = fread(buffer,1,  buffer_size, fptr)) > 0){
+            printf("act = %d, buf = %d\n",actual_size,buffer_size);
+            r = getDataPacket(buffer, actual_size, sequence);
+
+                        int Ls = 256*r.pointer[2]+r.pointer[3];
+                        // for(int i=0;i<Ls+4;i++){
+                        //     printf("%x",packet[i]);
+                        // }
+                        // printf("\n");
+                        printf("test sequence #%d\n", sequence);
+                        fwrite(&r.pointer[4],1,Ls,ftest);
+
+            printf("sequence #%d sent\n", r.pointer[1]);
+            for(int i=0;i<256*r.pointer[2]+r.pointer[3]+4;i++){
+                printf("%x",r.pointer[i]);
+            }
+            printf("\n");
             llwrite(r.pointer, r.value);
             sequence++;
         }   
 
         r = getControlPacket(3, file_name, file_size);
+        //llwrite(r.pointer, r.value);
     }
     else{
+        FILE* fptr;
+        fptr = fopen(file_name, "wb");
+        int result;
+        unsigned char* buffer = (unsigned char*)malloc(MAX_PACKET_SIZE * sizeof(unsigned char));
 
+        int END = FALSE;
+
+        while(!END){
+            result = llread(buffer);
+            if(result>=0){
+                if(parsePacket(buffer, result, fptr)==3) END = TRUE;
+            }
+        }
     }
+
+    fclose(file_name);
+    fclose("penguin-rec-test.gif");
+    //llclose
 }
