@@ -127,7 +127,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char* buffer = (unsigned char*)malloc(buffer_size * sizeof(unsigned char));
 
         Result r = getControlPacket(1, file_name, file_size);
-        //llwrite(r.pointer, r.value);
+        //llwrite(r.pointer, r.value); smh is breaking here
 
                         FILE *ftest;
                         ftest = fopen("penguin-rec-test.gif", "wb");
@@ -156,7 +156,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }   
 
         r = getControlPacket(3, file_name, file_size);
-        //llwrite(r.pointer, r.value);
+        llwrite(r.pointer, r.value);
+
+        fclose(fptr);
+        fclose(ftest);
     }
     else{
         FILE* fptr;
@@ -172,9 +175,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 if(parsePacket(buffer, result, fptr)==3) END = TRUE;
             }
         }
+        fclose(fptr);
     }
 
-    fclose(file_name);
-    fclose("penguin-rec-test.gif");
     //llclose
 }
