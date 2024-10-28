@@ -19,6 +19,7 @@ typedef enum {
     STATE_ADDRESS,
     STATE_CONTROL,
     STATE_FRAME_TYPE,
+    STATE_LENGTH,
     STATE_DATA,
     STATE_BCC1,
     STATE_BCC2,
@@ -43,17 +44,20 @@ typedef struct {
 } ControlFrame;
 
 typedef struct {
-    uint8_t sequenceNumber;  // Sequence number of the I frame
-    uint16_t dataSize;       // Size of the data field
+    uint8_t stuffedDataSize;       // Size of the data field
     uint8_t data[MAX_DATA_SIZE]; // Data field of the I frame
+    uint8_t bcc2; 
 } InformationFrame;
 
 typedef struct {
     uint8_t address;  // Address Field (common for both frames)
     uint8_t control;  // Control Field (common for both frames)
-    InformationFrame infoFrame; // Information Frame (if it's an I frame)
     uint8_t bcc1;     // BCC1 for header error checking
-    uint8_t bcc2;     // BCC2 for data error checking (I frames only)
+    InformationFrame infoFrame; // Information Frame (if it's an I frame)
 } Frame;
 
 Frame createControlFrame(uint8_t type, uint8_t address);
+int writeFrame(Frame frame);
+void stateMachine(uint8_t byte, Frame *frame);
+int validateFrame(Frame frame);
+int readFrame(Frame *frame);
