@@ -9,6 +9,10 @@
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
+#define ESC_OCTET 0x7d
+#define FLAG 0x7e
+#define XOR_OCTET 0x20
+
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
@@ -55,7 +59,35 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
-    // TODO
+    // stuffing function
+    typedef struct{
+        unsigned char *buffer;
+        int buffer_size;
+    } help_struct;
+
+    help_struct stuff(unsigned_char *buffer, int buffer_size){
+        // for every char except first and last (flags)
+        for(int i=1; i<buffer_size-1; i++){
+            if(buffer[i] == FLAG || buffer[i] == ESC_OCTET){
+                //increase size of buffer if necessary
+                tmp = buffer[i] ^ XOR_OCTET;
+                buffer_size += 1;
+                buffer = (unsigned char*)realloc(buffer, buffer_size*sizeof(unsigned char));
+                //shift elements
+                for(int j=buffer_size-1; j>i;j--){
+                    buffer[j] = buffer[j-1];
+                }
+                //replace
+                buffer[i] = ESC_OCTET;
+                buffer[i+1] = tmp;
+            }
+        }
+        help_struct r;
+        r.buffer = buffer;
+        r.buffer_size = buffer_size;
+        return r;
+    }
+    
 
     return 0;
 }
