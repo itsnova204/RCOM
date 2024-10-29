@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "frame.h": "c",
+        "stdint.h": "c",
+        "stdio.h": "c"
+    }
+}

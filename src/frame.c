@@ -53,60 +53,10 @@ void destuffing() {
     }
 }
 
-int stuffing2(const unsigned char *buf, int bufSize, unsigned char *stuffed_buf) {
-    int stuffed_bufSize = 0;
-
-    for (int i = 0; i < bufSize; i++) {
-        uint8_t byte = buf[i];
-        
-        if (byte == FLAG) {
-            // Replace 0x7E with 0x7D 0x5E
-            stuffed_buf[stuffed_bufSize++] = ESCAPE;
-            stuffed_buf[stuffed_bufSize++] = byte ^ 0x20;
-        } else if (byte == ESCAPE) {
-            // Replace 0x7D with 0x7D 0x5D
-            stuffed_buf[stuffed_bufSize++] = ESCAPE;
-            stuffed_buf[stuffed_bufSize++] = byte ^ 0x20;
-        } else {
-            // Regular byte, add to output
-            stuffed_buf[stuffed_bufSize++] = byte;
-        }
-    }
-
-    return stuffed_bufSize;
-}
-
-int destuffing2(const unsigned char *buf, int bufSize, unsigned char *de_stuffed_buf) {
-
-    int de_stuffed_bufSize = 0;
-    for (int i = 0; i < bufSize; i++) {
-        uint8_t byte = buf[i];
-        
-        if (byte == ESCAPE) {
-            // Escape sequence detected, XOR the next byte with 0x20
-            i++;  // Move to next byte
-            if (i < bufSize) {
-                de_stuffed_buf[de_stuffed_bufSize++] = buffer[i] ^ 0x20;
-            }
-        } else {
-            // Regular byte, add to output
-            de_stuffed_buf[de_stuffed_bufSize++] = byte;
-        }
-    }
-}
-
 uint8_t calculate_bcc(int start, int len) {
     uint8_t bcc = 0;
     for (int i = start; i < len; i++) {
         bcc ^= processedBuffer[i];  // XOR each byte
-    }
-    return bcc;
-}
-
-uint8_t calculate_bcc2(const unsigned char *buf, int start, int len) {
-    uint8_t bcc = 0;
-    for (int i = start; i < len; i++) {
-        bcc ^= buf[i];  // XOR each byte
     }
     return bcc;
 }
@@ -185,32 +135,6 @@ int write_frame(Frame frame) {
     const char *bytes = processedBuffer;
 
     return writeBytes(bytes, processedBufferSize);;
-}
-
-int write_buf(uint8_t address, uint8_t control, const unsigned char *buf, int bufSize) {
-    bufferSize = 0;
-
-    bufferSize++; // Start flag
-    buffer[bufferSize++] = address;
-    buffer[bufferSize++] = control;
-    buffer[bufferSize++] = address ^ control;
-
-    if (bufSize > 0) {
-        memcopy(buffer + bufferSize, buf, bufSize);
-        buffer[bufferSize++] = calculate_bcc2(buf, 0, bufSize);
-    }
-
-    bufferSize++; // End flag
-    char* stuffedBuf[BUFSIZE];
-    int stuffedSize = stuffing2(buf, bufSize, stuffedBuf);
-
-    // Add flags after stuffing
-    processedBuffer[0] = FLAG;
-    processedBuffer[stuffedSize - 1] = FLAG;
-
-    const char *bytes = stuffedBuf;
-
-    return writeBytes(bytes, stuffedSize);;
 }
 
 Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize) {
