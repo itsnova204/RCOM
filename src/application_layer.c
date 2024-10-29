@@ -100,7 +100,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 {
     LinkLayer connectionParameters;
     strcpy(connectionParameters.serialPort, serialPort);
-    connectionParameters.role = *role;
+    if(strcmp(role, "tx") == 0) connectionParameters.role = LlTx;
+    else connectionParameters.role = LlRx;
     connectionParameters.baudRate = baudRate;
     connectionParameters.nRetransmissions = nTries;
     connectionParameters.timeout = timeout;
