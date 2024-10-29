@@ -2,8 +2,11 @@
 
 #include <stdint.h>
 
-#define FLAG 0x7E
-#define MAX_DATA_SIZE 256
+#define FLAG        0x7E
+#define ESCAPE      0x7D
+#define XOROCTET    0x20
+
+#define MAX_DATA_SIZE 256 //TODO: Change this value
 
 #define SET 0x03
 #define UA 0x07
@@ -58,4 +61,6 @@ typedef struct {
 
 
 
-
+Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize);
+int write_frame(Frame frame);
+int read_frame(Frame *frame);
