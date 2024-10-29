@@ -44,7 +44,7 @@ typedef struct {
 } ControlFrame;
 
 typedef struct {
-    uint8_t stuffedDataSize;       // Size of the data field
+    uint8_t dataSize;       // Size of the data field
     uint8_t data[MAX_DATA_SIZE]; // Data field of the I frame
     uint8_t bcc2; 
 } InformationFrame;
@@ -56,8 +56,6 @@ typedef struct {
     InformationFrame infoFrame; // Information Frame (if it's an I frame)
 } Frame;
 
-Frame createControlFrame(uint8_t type, uint8_t address);
-int writeFrame(Frame frame);
-void stateMachine(uint8_t byte, Frame *frame);
-int validateFrame(Frame frame);
-int readFrame(Frame *frame);
+
+
+
