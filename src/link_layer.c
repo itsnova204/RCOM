@@ -136,6 +136,12 @@ int llopen(LinkLayer connectionParameters){
 // LLWRITE
 ////////////////////////////////////////////////
 int llwritecalls = 0;
+
+//return -1 big error
+//return -1 timeout
+//return -11 recived SET
+//return -12 recived UA
+//return -13 recived DISC
 int llwrite(const unsigned char *buf, int bufSize){
     printf("################# sending I frame %d ######################\n",llwritecalls++);
     printf("frame_number = %x\n",frame_number);
@@ -175,7 +181,7 @@ int llwrite(const unsigned char *buf, int bufSize){
         }
 
         // Wait for acknowledgment (RR or REJ)
-        int readout =read_frame(&ackFrame);
+        int readout = read_frame(&ackFrame);
         if(readout < 0){
             printf("Error reading frame readout < 0\n");
             return -1;
@@ -228,8 +234,22 @@ int llwrite(const unsigned char *buf, int bufSize){
                 }            
                 break;
 
-            case DISC: //received disconnect, close connection
+            case SET: //received SET frame
+                printf("SET frame received in middle of transmition! ABORTING AND RESETING EVERYTHING\n");
+                Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
+                if (write_frame(frameUA) != 0){
+                    printf("Error writing frame\n");
+                    return -1;
+                }
+                return -11;
+                break;
+            case UA:
+                printf("UA frame received in middle of transmition! Ignoring\n");
+                return -12;
+                break;
 
+            case DISC: //received disconnect, close connection
+                return -13;
                 break;
             default:
                 break;
@@ -340,17 +360,46 @@ int llread(unsigned char *packet){
                 Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
                 if (write_frame(frameUA) != 0){
                     printf("Error writing frame\n");
-                    return 0;
+                    return -1;
                 }
-                return -1;
-                break;
+                return -11;
+
             case UA:
                 printf("UA frame received in middle of transmition! Ignoring\n");
-                break;
+                return -12;
+
             case DISC:
                 printf("DISC frame received in middle of transmition! Stopping\n");
-                return -2;
-                break;
+                Frame frameUAdisc = {0};
+                while (alarmCount <= retries) {
+                    if (alarmEnabled == FALSE){
+                        alarm(timeout); 
+                        alarmEnabled = TRUE;
+                        alarmCount++;
+                        
+                        Frame frameDISC = {0};
+                        if (write_frame(frameDISC) != 0){
+                            printf("Error writing frame\n");
+                            return -1;
+                        }
+                    }
+                    
+                    if(read_frame(&frameUAdisc) != 0){ 
+                        printf("Error reading frame\n");
+                        return -1;
+                    }
+
+                    if(frameUA.control == DISC && frameUAdisc.address == TX_ADDR){
+                        int clstat = closeSerialPort();
+                        if(clstat != -1){
+                            return -13;
+                        }else{
+                            return -1;
+                        }
+                    }
+
+                    return -13;
+                }
             
             default:
                 break;
