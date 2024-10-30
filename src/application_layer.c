@@ -11,6 +11,11 @@
 #define MAX_PACKET_SIZE 2037 //1+1+2+256*8+255
 #define TRUE 1
 #define FALSE 0
+// in the guide sequance number is (0-99) but since we have 1 byte for
+// sequance we can have sequance number (0-255)
+#define SEQUANCE_MAX 255
+
+//STUFF DATA!!!
 
 typedef struct {
     int value;      // integer value
@@ -120,46 +125,49 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         printf("File size: %ld bytes\n", file_size);
         
-        int buffer_size = ceil(file_size / 100);
+        int buffer_size = ceil(file_size / SEQUANCE_MAX);
 
         printf("buffer size: %d bytes\n", buffer_size);
 
         unsigned char* buffer = (unsigned char*)malloc(buffer_size * sizeof(unsigned char));
 
         Result r = getControlPacket(1, file_name, file_size);
-        //llwrite(r.pointer, r.value); smh is breaking here
-
-                        FILE *ftest;
-                        ftest = fopen("penguin-rec-test.gif", "wb");
+        // if(llwrite(r.pointer,r.value) < 0)
+        // {
+        //     printf("llwrite couldnt send setting packet\n");
+        //     exit(-1);
+        // }
 
         int sequence = 0;
         int actual_size;
-        while((actual_size = fread(buffer,1,  buffer_size, fptr)) > 0){
+        while((actual_size = fread(buffer,1,  buffer_size, fptr)) > 0)
+        {
             printf("act = %d, buf = %d\n",actual_size,buffer_size);
             r = getDataPacket(buffer, actual_size, sequence);
 
-                        int Ls = 256*r.pointer[2]+r.pointer[3];
-                        // for(int i=0;i<Ls+4;i++){
-                        //     printf("%x",packet[i]);
-                        // }
-                        // printf("\n");
-                        printf("test sequence #%d\n", sequence);
-                        fwrite(&r.pointer[4],1,Ls,ftest);
-
             printf("sequence #%d sent\n", r.pointer[1]);
-            for(int i=0;i<256*r.pointer[2]+r.pointer[3]+4;i++){
+            for(int i=0;i<256*r.pointer[2]+r.pointer[3]+4;i++)
+            {
                 printf("%x",r.pointer[i]);
             }
             printf("\n");
-            llwrite(r.pointer, r.value);
+
+            if(llwrite(r.pointer, r.value) < 0)
+            {
+                printf("llwrite couldnt send packet 3%d\n", sequence);
+                exit(-1);
+            }
             sequence++;
         }   
 
         r = getControlPacket(3, file_name, file_size);
-        llwrite(r.pointer, r.value);
+        if(llwrite(r.pointer, r.value) < 0)
+        {
+            printf("llwrite couldn send ending packet\n");
+            exit(-1);
+        }
 
         fclose(fptr);
-        fclose(ftest);
     }
     else{
         FILE* fptr;
