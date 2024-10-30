@@ -25,11 +25,19 @@ Instructions to Run the Project
 
 4. Test the protocol without cable disconnections and noise
 	4.1 Run the receiver (either by running the executable manually or using the Makefile target):
+<<<<<<< HEAD
 		$ ./bin/main /dev/ttyS11 9600 rx penguin-received.gif
 		$ make run_tx
 
 	4.2 Run the transmitter (either by running the executable manually or using the Makefile target):
 		$ ./bin/main /dev/ttyS10 9600 tx penguin.gif
+=======
+		$ ./bin/main /dev/ttyS11 rx penguin-received.gif
+		$ make run_tx
+
+	4.2 Run the transmitter (either by running the executable manually or using the Makefile target):
+		$ ./bin/main /dev/ttyS10 tx penguin.gif
+>>>>>>> 7c65c57b2d6c52ca98d072010d36989b0a875b82
 		$ make run_rx
 
 	4.3 Check if the file received matches the file sent, using the diff Linux command or using the Makefile target:

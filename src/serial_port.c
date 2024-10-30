@@ -14,7 +14,7 @@
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
-int fd = -1;           // File descriptor for open serial port
+int fd = -1; // File descriptor for open serial port
 struct termios oldtio; // Serial port settings to restore on closing
 
 // Open and configure the serial port.
@@ -42,36 +42,18 @@ int openSerialPort(const char *serialPort, int baudRate)
     tcflag_t br;
     switch (baudRate)
     {
-    case 1200:
-        br = B1200;
-        break;
-    case 1800:
-        br = B1800;
-        break;
-    case 2400:
-        br = B2400;
-        break;
-    case 4800:
-        br = B4800;
-        break;
-    case 9600:
-        br = B9600;
-        break;
-    case 19200:
-        br = B19200;
-        break;
-    case 38400:
-        br = B38400;
-        break;
-    case 57600:
-        br = B57600;
-        break;
-    case 115200:
-        br = B115200;
-        break;
-    default:
-        fprintf(stderr, "Unsupported baud rate (must be one of 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200)\n");
-        return -1;
+        case 1200: br = B1200; break;
+        case 1800: br = B1800; break;
+        case 2400: br = B2400; break;
+        case 4800: br = B4800; break;
+        case 9600: br = B9600; break;
+        case 19200: br = B19200; break;
+        case 38400: br = B38400; break;
+        case 57600: br = B57600; break;
+        case 115200: br = B115200; break;
+        default:
+            fprintf(stderr, "Unsupported baud rate (must be one of 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200)\n");
+            return -1;
     }
 
     // New port settings
@@ -85,7 +67,7 @@ int openSerialPort(const char *serialPort, int baudRate)
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 0; // Block reading
-    newtio.c_cc[VMIN] = 1;  // Byte by byte
+    newtio.c_cc[VMIN] = 0;  // Byte by byte
 
     tcflush(fd, TCIOFLUSH);
 
@@ -110,9 +92,10 @@ int openSerialPort(const char *serialPort, int baudRate)
     return fd;
 }
 
+
 // Restore original port settings and close the serial port.
 // Returns -1 on error.
-int closeSerialPort()
+int closeSerialPort(void)
 {
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
@@ -124,18 +107,20 @@ int closeSerialPort()
     return close(fd);
 }
 
-// Wait up to 0.1 second (VTIME) for a byte received from the serial port (must
+
+// Wait for a byte received from the serial port and read it (must
 // check whether a byte was actually received from the return value).
 // Returns -1 on error, 0 if no byte was received, 1 if a byte was received.
-int readByteSerialPort(unsigned char *byte)
+int readByte(char *byte)
 {
     return read(fd, byte, 1);
 }
 
+
 // Write up to numBytes to the serial port (must check how many were actually
 // written in the return value).
 // Returns -1 on error, otherwise the number of bytes written.
-int writeBytesSerialPort(const unsigned char *bytes, int numBytes)
+int writeBytes(const char *bytes, int numBytes)
 {
     return write(fd, bytes, numBytes);
 }

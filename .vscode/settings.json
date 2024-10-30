@@ -1,6 +1,11 @@
 {
     "files.associations": {
+<<<<<<< HEAD
         ".fantomasignore": "ignore",
+=======
+        "frame.h": "c",
+        "stdint.h": "c",
+>>>>>>> 7c65c57b2d6c52ca98d072010d36989b0a875b82
         "stdio.h": "c"
     }
 }
