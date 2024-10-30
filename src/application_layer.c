@@ -80,10 +80,11 @@ int parsePacket(unsigned char *packet, int size, FILE* fptr)
         return 1;
     case 2:
         int Ls = 256*packet[2]+packet[3];
-        for(int i=0;i<Ls+4;i++){
+        /*for(int i=0;i<Ls+4;i++){
             printf("%x",packet[i]);
         }
         printf("\n");
+        */
         fwrite(&packet[4],1,Ls,fptr);
         return 2;
     case 3:
@@ -133,7 +134,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         Result r = getControlPacket(1, file_name, file_size);
         
-        printf("Sending control packet [1]\n"); \
         
         //TODO handle return value of llwrite
         llwrite(r.pointer, r.value); 
@@ -156,16 +156,18 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                         fwrite(&r.pointer[4],1,Ls,ftest);
 
             printf("sequence #%d sent\n", r.pointer[1]);
+            /*
             for(int i=0;i<256*r.pointer[2]+r.pointer[3]+4;i++){
                 printf("%x",r.pointer[i]);
             }
             printf("\n");
+            */
             llwrite(r.pointer, r.value);
             sequence++;
         }   
 
         r = getControlPacket(3, file_name, file_size);
-        printf("Sending control packet [3]\n");
+        
         llwrite(r.pointer, r.value);
 
         //TODO use llclose
@@ -185,8 +187,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         while(!END){
             readsize = llread(buffer);
-            printf("readsize = %d\n",readsize);
-            printf("buffer[0] = %x\n",buffer[0]);
             if(readsize>=0){
                     
                 if(parsePacket(buffer, readsize, fptr)==3) END = TRUE;
