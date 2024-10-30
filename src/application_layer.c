@@ -15,7 +15,8 @@
 // sequance we can have sequance number (0-255)
 #define SEQUANCE_MAX 255
 
-//STUFF DATA!!!
+char R_FILE_NAME[50];
+long R_FILE_SIZE = 0;
 
 typedef struct {
     int value;      // integer value
@@ -48,6 +49,12 @@ Result getControlPacket(int control_field, const char *file_name, long file_size
     packet[index++] = (file_size >> 16) & 0xFF; // Extract the sixth byte
     packet[index++] = (file_size >> 8) & 0xFF;  // Extract the seventh byte
     packet[index++] = file_size & 0xFF;
+
+    long tmp=0;
+    for(int i=3;i<=10;i++){
+        tmp = tmp*256+packet[i];
+    }
+    printf("=============================== %ld\n", tmp);
 
     packet[index++] = T2;
     packet[index++] = L2;
@@ -82,7 +89,13 @@ int parsePacket(unsigned char *packet, int size, FILE* fptr)
     switch (packet[0])
     {
     case 1:
-        //get attrs
+        printf("received file size is suppoosed to be %ld bytes\n", R_FILE_SIZE);
+
+        int tmp = packet[12];
+        for(int i=0;i<tmp;i++){
+            R_FILE_NAME[i] = packet[13+i];
+        }
+        printf("received file name is suppoosed to be %.50s\n", R_FILE_NAME);
         return 1;
     case 2:
         int Ls = 256*packet[2]+packet[3];
@@ -93,7 +106,28 @@ int parsePacket(unsigned char *packet, int size, FILE* fptr)
         fwrite(&packet[4],1,Ls,fptr);
         return 2;
     case 3:
-        //get & check attrs
+        long file_size = 0;
+        for(int i=0;i<8;i++){
+            file_size = file_size * 256 + packet[3+i];
+        }
+
+        char file_name[50];
+        int tmp = packet[12];
+        for(int i=0;i<tmp;i++){
+            file_name[i] = packet[13+i];
+        }
+
+        if(file_size != R_FILE_SIZE){
+            printf("file size from 1st and last contr. packet is different\n");
+            exit(-1);
+        }
+
+        for(int i=0;i<50;i++){
+            if(R_FILE_NAME[i] != file_name[i]){
+                printf("file name from 1st and last contr. packet is different\n");
+                exit(-1);
+            }
+        }
         return 3;
     default:
         return -1;
@@ -124,19 +158,15 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fseek(fptr, 0, SEEK_SET);
 
         printf("File size: %ld bytes\n", file_size);
-        
-        int buffer_size = ceil(file_size / SEQUANCE_MAX);
-
+        int buffer_size = ceil(file_size / SEQUANCE_MAX+1);
         printf("buffer size: %d bytes\n", buffer_size);
-
         unsigned char* buffer = (unsigned char*)malloc(buffer_size * sizeof(unsigned char));
 
         Result r = getControlPacket(1, file_name, file_size);
-        // if(llwrite(r.pointer,r.value) < 0)
-        // {
-        //     printf("llwrite couldnt send setting packet\n");
-        //     exit(-1);
-        // }
+        if(llwrite(r.pointer,r.value) < 0){
+            printf("llwrite coulding send opening packet\n");
+            exit(-1);
+        }
 
         int sequence = 0;
         int actual_size;
@@ -166,7 +196,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             printf("llwrite couldn send ending packet\n");
             exit(-1);
         }
-
+        if(llclose(1)<0){
+            printf("smh wrong with llclose\n");
+            exit(-1);
+        }
         fclose(fptr);
     }
     else{
@@ -185,6 +218,4 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         fclose(fptr);
     }
-
-    //llclose
 }
