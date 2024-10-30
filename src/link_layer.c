@@ -1,6 +1,7 @@
 // Link layer protocol implementation
 #include <stdio.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "link_layer.h"
 #include "serial_port.h"
@@ -16,7 +17,6 @@
 #define FALSE 0
 #define TRUE 1
 
-#define RETRIES 3
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
@@ -27,12 +27,15 @@ int number_of_retransmissions = 0;
 int number_of_timeouts = 0;
 
 
+
+
 // Global variables
-int fd = 0;
 LinkLayerRole role;
 
 uint8_t frame_number = 0x00;
 Frame latestFrame;
+int timeout = 3;
+int retries = 3;
 
 void alarmHandler(int signal)
 {
@@ -51,34 +54,35 @@ int llopen(LinkLayer connectionParameters){
     int alarmCount = 0;
 
     role = connectionParameters.role;
-    int fd = 0;
-    if (fd = openSerialPort(connectionParameters.serialPort,
-                       connectionParameters.baudRate) < 0){
-        return -1;
-    }
+    timeout = connectionParameters.timeout;
+    retries = connectionParameters.nRetransmissions;
+
+    int fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
+    if (fd < 0) return -1;
 
     if (role == LlTx){
         Frame frame = create_frame(SET, TX_ADDR, NULL, 0);
         Frame frameUA = {0};
-
-        while(frame.control != SET && alarmCount < RETRIES + 12){ //wait for SET frame extra time for the first frame
+        while(alarmCount <= retries){
             if (alarmEnabled == FALSE){
-                
-                alarm(1); // Set alarm to be triggered in 3s
+                alarm(timeout); // Set alarm to be triggered in 3s
                 alarmEnabled = TRUE;
-                if(write_frame(frame) != 0){
+                alarmCount++;
+
+                if(write_frame(frame) <= 0){
                     printf("Error writing frame\n");
                     return -1;
                 }
+                printf("SET frame sent\n");
             }
 
-            
-            if (read_frame(&frameUA) != 0){
-                printf("Error writing frame\n");
+            if (read_frame(&frameUA) < 0){
+                printf("Error reading frame\n");
                 return -1;
             }
 
-            if(frameUA.control == UA){
+            if(frameUA.control == UA && frameUA.address == RX_ADDR){
+                printf("################# UA frame received ######################\n");
                 return fd;
             }
         }
@@ -88,32 +92,44 @@ int llopen(LinkLayer connectionParameters){
     }else if (role == LlRx){
         Frame frame = {0};
 
-        while(frame.control != SET && alarmCount < RETRIES + 12){ //wait for SET frame extra time for the first frame
+        while(alarmCount <= retries){ 
             if (alarmEnabled == FALSE){
-                alarm(1); // Set alarm to be triggered in 3s
+                alarm(timeout); // Set alarm to be triggered in 3s
                 alarmEnabled = TRUE;
+                alarmCount++;
             }
 
-            if(read_frame(&frame) != 0){ 
+            int readout = read_frame(&frame);
+            if(readout == 0){ //read nothing try again
+                continue;
+            }
+
+            
+            if(readout < 0){ 
                 printf("Error reading frame\n");
+                alarmEnabled = FALSE;
                 return -1;
             }
 
-            //frame ok!
-            if (frame.control != SET){
-                printf("Error: unexpected frame, waiting for SET\n");
-                return -1;
-            }    
-        }
+            if(frame.control == SET){
+                printf("SET frame received\n");
 
-        Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
-        if (write_frame(frameUA) != 0){
-            printf("Error writing frame\n");
-            return -1;
+                Frame frameUA = {0};
+                frameUA = create_frame(UA, RX_ADDR, NULL, 0);
+                if (write_frame(frameUA) <= 0){
+                    printf("Error writing frame\n");
+                    alarmEnabled = FALSE;
+                    return -1;
+                }
+                alarmEnabled = FALSE;
+                return fd;
+            }
         }
-        
+        alarmEnabled = FALSE;
         return fd;
     }
+
+    return 0;
 }
 
 ////////////////////////////////////////////////
@@ -127,10 +143,11 @@ int llwrite(const unsigned char *buf, int bufSize){
 
     int alarmCount = 0;
     
-    while (alarmCount < RETRIES) {
+    while (alarmCount <= retries) {
         if (alarmEnabled == FALSE){
-            alarm(1); 
+            alarm(timeout); 
             alarmEnabled = TRUE;
+            alarmCount++;
             
             // Send the data frame
             bytesWritten = write_frame(latestFrame);  // frameNumber = 0 or 1 in Stop-and-Wait
@@ -207,54 +224,35 @@ int llread(unsigned char *packet){
     Frame frame = {0};
 
 
-    int readOutput = read_frame(&frame);
+    
 
     int alarmCount = 0;
     int alarmEnabled = FALSE;
 
-    while (alarmCount < RETRIES)
-    {
+    while (alarmCount <= retries){
          if (alarmEnabled == FALSE){
-                alarm(1); 
-                alarmEnabled = TRUE;
-            }
-    }    
-
-    if (readOutput != 0){//bcc failed!
-        Frame frameREJ = create_frame(frame_number, RX_ADDR, NULL, 0);
-
-        if (write_frame(frameREJ) != 0){
-            printf("Error writing frame\n");
-            return 0;
+            alarm(timeout); 
+            alarmEnabled = TRUE;
+            printf("Waiting for frame TIMEOUT\n");
+            alarmCount++;
         }
-        return 0;
-    }
 
-    if (frame.address != TX_ADDR){ //failed address
-        Frame frameREJ = create_frame(frame_number, RX_ADDR, NULL, 0);
-
-        if (write_frame(frameREJ) <= 0){
-            printf("Error writing frame\n");
-            return 0;
+        int readOutput = read_frame(&frame);
+        if(readOutput == 0){ //read nothing try again
+            continue;
         }
-        return 0;
-    }
-    
-    if(frame.control == 0x00 || frame.control == 0x80){
-        if (frame.control == frame_number){
-            //send RR
-            frame_number = frame_number == 0 ? RR0 : RR1;
 
-            Frame frameRR = create_frame(frame_number, RX_ADDR, NULL, 0);
-            int write_out = 0;
-            if (write_out = write_frame(frameRR) <= 0){
+        if (readOutput < 0){//bcc failed!
+            Frame frameREJ = create_frame(frame_number, RX_ADDR, NULL, 0);
+
+            if (write_frame(frameREJ) != 0){
                 printf("Error writing frame\n");
                 return 0;
             }
+            return 0;
+        }
 
-            return write_out;
-        }else{
-            //send REJ
+        if (frame.address != TX_ADDR){ //failed address
             Frame frameREJ = create_frame(frame_number, RX_ADDR, NULL, 0);
 
             if (write_frame(frameREJ) <= 0){
@@ -263,30 +261,56 @@ int llread(unsigned char *packet){
             }
             return 0;
         }
-    }else{
-        switch (frame.control)
-        {
-        case SET: //received SET frame
-            printf("SET frame received in middle of transmition! ABORTING AND RESETING EVERYTHING\n");
-            Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
-            if (write_frame(frameUA) != 0){
-                printf("Error writing frame\n");
+        
+        if(frame.control == 0x00 || frame.control == 0x80){
+            if (frame.control == frame_number){
+                //send RR
+                frame_number = frame_number == 0 ? RR0 : RR1;
+
+                Frame frameRR = create_frame(frame_number, RX_ADDR, NULL, 0);
+                int write_out = write_frame(frameRR);
+                if (write_out <= 0){
+                    printf("Error writing frame\n");
+                    return 0;
+                }
+
+                return write_out;
+            }else{
+                //send REJ
+                Frame frameREJ = create_frame(frame_number, RX_ADDR, NULL, 0);
+
+                if (write_frame(frameREJ) <= 0){
+                    printf("Error writing frame\n");
+                    return 0;
+                }
                 return 0;
             }
-            return -1;
-            break;
-        case UA:
-            printf("UA frame received in middle of transmition! Ignoring\n");
-            break;
-        case DISC:
-            printf("DISC frame received in middle of transmition! Stopping\n");
-            return -2;
-            break;
-        
-        default:
-            break;
+        }else{
+            switch (frame.control)
+            {
+            case SET: //received SET frame
+                printf("SET frame received in middle of transmition! ABORTING AND RESETING EVERYTHING\n");
+                Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
+                if (write_frame(frameUA) != 0){
+                    printf("Error writing frame\n");
+                    return 0;
+                }
+                return -1;
+                break;
+            case UA:
+                printf("UA frame received in middle of transmition! Ignoring\n");
+                break;
+            case DISC:
+                printf("DISC frame received in middle of transmition! Stopping\n");
+                return -2;
+                break;
+            
+            default:
+                break;
+            }
         }
-    }
+    }    
+    return 0; //timeout
 }
 
 ////////////////////////////////////////////////
@@ -303,10 +327,11 @@ int llclose(int showStatistics)
         
         Frame frameDISC = {0};
         
-        while (alarmCount < RETRIES){ //wait for DISC rx
+        while (alarmCount <= retries){ //wait for DISC rx
             if (alarmEnabled == FALSE){
-                alarm(1); 
+                alarm(timeout); 
                 alarmEnabled = TRUE;
+                alarmCount++;
 
                 Frame frame = create_frame(DISC, TX_ADDR, NULL, 0);
                 if (write_frame(frame) != 0){
@@ -337,10 +362,11 @@ int llclose(int showStatistics)
     if (role == LlRx){
 
         Frame frameUA = {0};
-        while (alarmCount < RETRIES) {
+        while (alarmCount <= retries) {
             if (alarmEnabled == FALSE){
-                alarm(1); 
+                alarm(timeout); 
                 alarmEnabled = TRUE;
+                alarmCount++;
                 
                 Frame frameDISC = {0};
                 if (write_frame(frameDISC) != 0){

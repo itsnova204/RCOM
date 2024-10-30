@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 
 #include "frame.h"
@@ -14,6 +15,7 @@ char buffer[BUFSIZE] = {0};
 
 int processedBufferSize = 0;
 char processedBuffer[BUFSIZE] = {0};
+
 void stuffing() {
     processedBufferSize = 0;
 
@@ -67,65 +69,71 @@ int populateFrame(Frame* frame){
     frame->address = processedBuffer[0];
     frame->control = processedBuffer[1];
     frame->bcc1 = processedBuffer[2];
-    if (frame->bcc1 != (frame->address^frame->control)) return 1; //BCC1 failed!
 
-    if (processedBufferSize = 3) return 0; //Control frame
-    
+    if (frame->bcc1 != (frame->address^frame->control)) return -1; //BCC1 failed!
+
+    if (processedBufferSize == 3) return processedBufferSize; //Control frame
+
+    printf("RECIVED INFO FRAME\n");
     frame->infoFrame.dataSize = processedBufferSize - 2;
     
     uint8_t bcc = calculate_bcc(3, frame->infoFrame.dataSize);
-    if (bcc != processedBuffer[processedBufferSize - 1]) return 2; //BCC2 failed!
+    if (bcc != processedBuffer[processedBufferSize - 1]) return -2; //BCC2 failed!
     
     for (int i = 0; i < frame->infoFrame.dataSize; i++) {
         frame->infoFrame.data[i] = processedBuffer[i + 3];
     }
 
-    return 0;
+    return processedBufferSize;
 }
 
+int start_found = 0;
 int read_frame(Frame* frame) {
-    int alarmCounter = 0; //TODO: Add alarm
-    int start_found = 0;
+    
+    char byte;
 
+    int readcount = readByte(&byte);
+    if(readcount == 0) return 0; // No byte read
 
-    uint8_t byte;
-    uint8_t readcount = readByte(&byte);
+    printf("Read byte: %x\n", byte);
 
     if (byte == FLAG) {
-    if (!start_found) {
+        if (!start_found) {
             // Start of frame
             start_found = 1;
             bufferSize = 0;
         } else {
             // End of frame
-            return populateFrame(&frame);
+            start_found = 0;
+            return populateFrame(frame);
         }
-
     } else if (start_found) {
-
+        
         buffer[bufferSize++] = byte;
         if (bufferSize >= sizeof(buffer)) {
             printf("Frame too large!\n");
             return -2;  // Error: frame exceeds buffer size
         }
     }  
+
+    return 0;
 }
     
 int write_frame(Frame frame) {
     bufferSize = 0;
-
-    bufferSize++; // Start flag
+    
+    buffer[bufferSize++] = 0; // Start flag
     buffer[bufferSize++] = frame.address;
     buffer[bufferSize++] = frame.control;
     buffer[bufferSize++] = frame.bcc1;
 
     //Add data if it's an I frame
     if (frame.infoFrame.dataSize > 0) {
-        memcopy(buffer + bufferSize, frame.infoFrame.data, frame.infoFrame.dataSize);
+        memcpy(buffer + bufferSize, frame.infoFrame.data, frame.infoFrame.dataSize);
         buffer[bufferSize++] = frame.infoFrame.bcc2;
     }
 
-    bufferSize++; // End flag
+    buffer[bufferSize++] = 0; // End flag
     stuffing();
 
     // Add flags after stuffing
@@ -134,11 +142,17 @@ int write_frame(Frame frame) {
 
     const char *bytes = processedBuffer;
 
+    for (size_t i = 0; i < bufferSize; i++)
+    {
+        printf("Writing Byte %02x\n",bytes[i]);
+    }
+    
+
     return writeBytes(bytes, processedBufferSize);;
 }
 
-Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize) {
-    Frame frame;
+Frame create_frame(uint8_t type, uint8_t address, const unsigned char* packet, int packetSize) {
+    Frame frame = {0};
     if (packetSize > sizeof(frame.infoFrame.data)){
         printf("[CRITICAL ERROR] Packet too large!\n");
         return frame;
@@ -150,7 +164,7 @@ Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize) 
 
     if (packetSize > 0) {
         frame.infoFrame.dataSize = packetSize;
-        memcopy(frame.infoFrame.data, packet, packetSize);
+        memcpy(frame.infoFrame.data, packet, packetSize);
         frame.infoFrame.bcc2 = calculate_bcc(0, packetSize);
     }    
     
