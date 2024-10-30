@@ -52,6 +52,11 @@ void destuffing() {
             // Regular byte, add to output
             processedBuffer[processedBufferSize++] = byte;
         }
+        printf("Processed buffer[%d]: %02x\n", processedBufferSize - 1, processedBuffer[processedBufferSize - 1]);
+    }
+
+    for (int i = 0; i < processedBufferSize; i++) {
+        printf("POST Processed buffer[%d]: %02x\n", i, processedBuffer[i]);
     }
 }
 
@@ -65,6 +70,7 @@ uint8_t calculate_bcc(char* bccbuff, int start, int len) {
 
 int populateFrame(Frame* frame){
     destuffing();
+    printf("AAAAAAAAAAAAAAAAAA %x", processedBuffer[0]);
 
     frame->address = processedBuffer[0];
     frame->control = processedBuffer[1];
@@ -86,7 +92,7 @@ int populateFrame(Frame* frame){
         printf("BCC2 failed!\n");
         printf("CALCULATED BCC2: %02x\n", bcc);
         printf("EXPECTED BCC2: %02x\n", (uint8_t)processedBuffer[processedBufferSize - 1]);
-        return -1; //BCC2 failed!
+        return -2; //BCC2 failed!
     }
     
     for (int i = 0; i < frame->infoFrame.dataSize; i++) {
@@ -114,7 +120,14 @@ int read_frame(Frame* frame) {
         } else {
             // End of frame
             start_found = 0;
-            return populateFrame(frame);
+            int populateStatus = populateFrame(frame);
+            if(populateStatus < 0){
+                start_found = 0;
+                return -1; // Error: BCC failed
+            } 
+                
+
+            return populateStatus;
         }
     } else if (start_found) {
         

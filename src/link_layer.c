@@ -107,8 +107,7 @@ int llopen(LinkLayer connectionParameters){
             
             if(readout < 0){ 
                 printf("Error reading frame readout < 0\n");
-                alarmEnabled = FALSE;
-                return -1;
+                continue;
             }
 
             if(frame.control == SET){
@@ -117,7 +116,7 @@ int llopen(LinkLayer connectionParameters){
                 Frame frameUA = {0};
                 frameUA = create_frame(UA, RX_ADDR, NULL, 0);
                 if (write_frame(frameUA) <= 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame UA\n");
                     alarmEnabled = FALSE;
                     return -1;
                 }
@@ -130,6 +129,7 @@ int llopen(LinkLayer connectionParameters){
         return fd;
     }
 
+    printf("Error TIMEOUT\n");
     return 0;
 }
 
@@ -165,27 +165,37 @@ int llwrite(const unsigned char *buf, int bufSize){
         return -1;  // Serial port write error
     }
 
-    while (alarmCount <= retries) {
+    int REJCOUNT = 0;
+    int retransmission = 0;
+    while (alarmCount <= retries && REJCOUNT <= retries) {
         if (alarmEnabled == FALSE){
             printf("Waiting for acknowledgment TIMEOUT\n");
-            alarm(timeout); 
-            alarmEnabled = TRUE;
+
             alarmCount++;
-            
-            // Send the data frame
+            retransmission = 1;
+        }
+
+        if (retransmission == 1){
+            retransmission = 0;
+            number_of_frames++;
+
+                // Send the data frame
             bytesWritten = write_frame(latestFrame);  // frameNumber = 0 or 1 in Stop-and-Wait
             
             if (bytesWritten < 0) {
                 printf("Error writing to serial port");
                 return -1;  // Serial port write error
             }
+
+            alarm(timeout); 
+            alarmEnabled = TRUE;
         }
 
         // Wait for acknowledgment (RR or REJ)
         int readout = read_frame(&ackFrame);
         if(readout < 0){
-            printf("Error reading frame readout < 0\n");
-            return -1;
+            printf("Error reading frame bcc\n");
+            continue;
         }
         if(readout == 0){
             continue;
@@ -221,20 +231,26 @@ int llwrite(const unsigned char *buf, int bufSize){
                 break;
 
             case REJ0:
-                printf("REJ recived, RETRAINSMITING\n");
+                printf("REJ0, RETRAINSMITING %d\n",frame_number);
                 number_of_retransmissions++;
-                return -2;
+                retransmission = 1;
+                alarmCount = 0;
+                REJCOUNT++;
+                break;
 
             case REJ1:
-                printf("REJ recived, RETRAINSMITING\n");
+                printf("REJ1, RETRAINSMITING %d\n",frame_number);
                 number_of_retransmissions++;
-                return -2;
+                retransmission = 1;
+                alarmCount = 0;
+                REJCOUNT++;
+                break;
 
             case SET: //received SET frame
                 printf("SET frame received in middle of transmition! ABORTING AND RESETING EVERYTHING\n");
                 Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
                 if (write_frame(frameUA) != 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame UA\n");
                     return -1;
                 }
                 return -11;
@@ -252,7 +268,7 @@ int llwrite(const unsigned char *buf, int bufSize){
             }
     }
     
-
+    printf("Error TIMEOUT\n");
     return -1; //timeout
 }
 
@@ -292,11 +308,11 @@ int llread(unsigned char *packet){
             uint8_t rej = frame_number == 0 ? REJ0 : REJ1;
             Frame frameREJ = create_frame(rej, RX_ADDR, NULL, 0);
 
-            if (write_frame(frameREJ) != 0){
-                printf("Error writing frame\n");
+            if (write_frame(frameREJ) <= 0){
+                printf("Error writing frame REJ\n");
                 return 0;
             }
-            return 0;
+            continue;
         }
 
         if(readOutput < 3){ //frame not ready
@@ -311,7 +327,7 @@ int llread(unsigned char *packet){
             Frame frameREJ = create_frame(rej, RX_ADDR, NULL, 0);
 
             if (write_frame(frameREJ) <= 0){
-                printf("Error writing frame\n");
+                printf("Error writing frame REJ\n");
                 return 0;
             }
             return 0;
@@ -330,7 +346,7 @@ int llread(unsigned char *packet){
                 Frame frameRR = create_frame(rr, RX_ADDR, NULL, 0);
                 int write_out = write_frame(frameRR);
                 if (write_out <= 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame RR\n");
                     return 0;
                 }
 
@@ -343,7 +359,7 @@ int llread(unsigned char *packet){
                 Frame frameREJ = create_frame(rej, RX_ADDR, NULL, 0);
 
                 if (write_frame(frameREJ) <= 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame REJ\n");
                     return 0;
                 }
                 return 0;
@@ -355,7 +371,7 @@ int llread(unsigned char *packet){
                 printf("SET frame received in middle of transmition! ABORTING AND RESETING EVERYTHING\n");
                 Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
                 if (write_frame(frameUA) != 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame UA\n");
                     return -1;
                 }
                 return -11;
@@ -375,7 +391,7 @@ int llread(unsigned char *packet){
                         
                         Frame frameDISC = {0};
                         if (write_frame(frameDISC) != 0){
-                            printf("Error writing frame\n");
+                            printf("Error writing frame DISC\n");
                             return -1;
                         }
                     }
@@ -402,6 +418,7 @@ int llread(unsigned char *packet){
             }
         }
     }    
+    printf("Error TIMEOUT\n");
     return 0; //timeout
 }
 
@@ -427,7 +444,7 @@ int llclose(int showStatistics)
 
                 Frame frame = create_frame(DISC, TX_ADDR, NULL, 0);
                 if (write_frame(frame) != 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame DISC\n");
                     return -1;
                 }
             }
@@ -440,7 +457,7 @@ int llclose(int showStatistics)
             if(frameDISC.control != DISC && frameDISC.control == RX_ADDR){
                 Frame frameUA = create_frame(UA, TX_ADDR, NULL, 0);
                 if (write_frame(frameUA) != 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame UA\n");
                     return -1;
                 }
                 int clstat = closeSerialPort();
@@ -462,7 +479,7 @@ int llclose(int showStatistics)
                 
                 Frame frameDISC = {0};
                 if (write_frame(frameDISC) != 0){
-                    printf("Error writing frame\n");
+                    printf("Error writing frame DISC\n");
                     return -1;
                 }
             }
