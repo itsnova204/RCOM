@@ -188,11 +188,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             printf("readsize = %d\n",readsize);
             printf("buffer[0] = %x\n",buffer[0]);
             if(readsize>=0){
-                if(buffer[2]){
                     
-                    if(parsePacket(buffer, readsize, fptr)==3) END = TRUE;
-                    
-                }
+                if(parsePacket(buffer, readsize, fptr)==3) END = TRUE;
+
             }
         }
 
