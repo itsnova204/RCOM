@@ -145,7 +145,7 @@ int llwritecalls = 0;
 //return -13 recived DISC
 int llwrite(const unsigned char *buf, int bufSize){
     printf("################# sending I frame %d ######################\n",llwritecalls++);
-    printf("frame_number = %x\n",frame_number);
+    
     char* frameBuf = (char*)buf;
 
     uint8_t control = frame_number == 0 ? 0x00 : 0x80;
@@ -199,10 +199,10 @@ int llwrite(const unsigned char *buf, int bufSize){
             printf("recived data, expecting ack\n");
         }
         
-        printf("ackFrame.control = %x\n",ackFrame.control);
         switch (ackFrame.control){
             case RR0:
                 if (frame_number == 1) { //success
+                    printf("Frame recit OK\n");
                     frame_number = 0;
                     return bytesWritten;
                 }else{ //error probably timeout, retransmit
@@ -212,6 +212,7 @@ int llwrite(const unsigned char *buf, int bufSize){
 
             case RR1:
                 if (frame_number == 0) { //success
+                    printf("Frame recit OK\n");
                     frame_number = 1;
                     return bytesWritten;
                 }else{ //error probably timeout, retransmit
@@ -220,20 +221,14 @@ int llwrite(const unsigned char *buf, int bufSize){
                 break;
 
             case REJ0:
-                if (frame_number == 0) { //error, retransmit
-                    continue;
-                }else{ //error, retransmit
-                    continue;
-                }            
-                break;
+                printf("REJ recived, RETRAINSMITING\n");
+                number_of_retransmissions++;
+                return -2;
 
             case REJ1:
-                if (frame_number == 1) { //error, retransmit
-                    continue;
-                }else{ //error, retransmit
-                    continue;
-                }            
-                break;
+                printf("REJ recived, RETRAINSMITING\n");
+                number_of_retransmissions++;
+                return -2;
 
             case SET: //received SET frame
                 printf("SET frame received in middle of transmition! ABORTING AND RESETING EVERYTHING\n");
@@ -323,8 +318,6 @@ int llread(unsigned char *packet){
         }
 
         uint8_t expected_control = frame_number == 0 ? 0x00 : 0x80;
-        printf("frame.control = %x\n",frame.control);
-        printf("expected_control = %x\n",expected_control);
 
         if(frame.control == 0x00 || frame.control == 0x80){
             if (frame.control == expected_control){ //SUCESS

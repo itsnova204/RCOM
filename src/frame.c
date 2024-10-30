@@ -139,8 +139,6 @@ int write_frame(Frame frame) {
     buffer[bufferSize++] = frame.control;
     buffer[bufferSize++] = frame.bcc1;
 
-    printf("Sending control %02x\n", frame.control);
-
     //Add data if it's an I frame
     if (frame.infoFrame.dataSize > 0) {
         memcpy(buffer + bufferSize, frame.infoFrame.data, frame.infoFrame.dataSize);
