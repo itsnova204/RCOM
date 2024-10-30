@@ -116,10 +116,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         if (fptr == NULL) {
             printf("file opening failed\n");
-            return 1;
+            return;
         }
-        
-        fseek(fptr, 0, SEEK_END);
+
+        fseek(fptr, 0L, SEEK_END);
         long file_size = ftell(fptr);
         fseek(fptr, 0, SEEK_SET);
 

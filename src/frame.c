@@ -82,9 +82,10 @@ int populateFrame(Frame* frame){
     
     uint8_t bcc = calculate_bcc(processedBuffer, 3, frame->infoFrame.dataSize);
 
-    if (bcc != processedBuffer[processedBufferSize - 1]){
+    if (bcc != (uint8_t)processedBuffer[processedBufferSize - 1]){
         printf("BCC2 failed!\n");
-        printf("EXPECTED BCC2: %02x\n", processedBuffer[processedBufferSize - 1]);
+        printf("CALCULATED BCC2: %02x\n", bcc);
+        printf("EXPECTED BCC2: %02x\n", (uint8_t)processedBuffer[processedBufferSize - 1]);
         return -1; //BCC2 failed!
     }
     
@@ -156,12 +157,12 @@ int write_frame(Frame frame) {
 
     const char *bytes = processedBuffer;
 
-/*
-    for (size_t i = 0; i < processedBufferSize; i++)
-    {
-        printf("Writing Byte %02x\n",bytes[i]);
-    }
-*/
+    /*
+        for (size_t i = 0; i < processedBufferSize; i++)
+        {
+            printf("Writing Byte %02x\n",bytes[i]);
+        }
+    */
 
     writtenFrames++;
     int temp = writeBytes(bytes, processedBufferSize);
