@@ -189,5 +189,5 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fclose(fptr);
     }
 
-    //llclose
+    //llclose cant call it here! it must be before fclose
 }
