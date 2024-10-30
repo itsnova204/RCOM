@@ -128,12 +128,16 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         Result r = getControlPacket(1, file_name, file_size);
         
-        printf("Sending control packet [1]\n");
-        llwrite(r.pointer, r.value); //smh is breaking here
+        printf("Sending control packet [1]\n"); \
+        
+        //TODO handle return value of llwrite
+        llwrite(r.pointer, r.value); 
         
         FILE *ftest;    
         ftest = fopen("penguin-rec-test.gif", "wb");
 
+
+        //TODO actually read a file
         int sequence = 0;
         int actual_size;
         while((actual_size = fread(buffer,1,  buffer_size, fptr)) > 0){
@@ -161,6 +165,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         printf("Sending control packet [3]\n");
         llwrite(r.pointer, r.value);
 
+        //TODO use llclose
+
         fclose(fptr);
         fclose(ftest);
     }
@@ -171,6 +177,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char* buffer = (unsigned char*)malloc(MAX_PACKET_SIZE * sizeof(unsigned char));
 
         int END = FALSE;
+
+        //TODO handle control packets
 
         while(!END){
             result = llread(buffer);
