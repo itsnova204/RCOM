@@ -11,7 +11,7 @@
 
 
 int bufferSize = 0; 
-char buffer[BUFSIZE] = {0};
+unsigned char buffer[BUFSIZE] = {0};
 
 int processedBufferSize = 0;
 char processedBuffer[BUFSIZE] = {0};
@@ -55,10 +55,10 @@ void destuffing() {
     }
 }
 
-uint8_t calculate_bcc(int start, int len) {
+uint8_t calculate_bcc(char* bccbuff, int start, int len) {
     uint8_t bcc = 0;
-    for (int i = start; i < len; i++) {
-        bcc ^= processedBuffer[i];  // XOR each byte
+    for (int i = start; i < start + len; i++) {
+        bcc ^= bccbuff[i];  // XOR each byte
     }
     return bcc;
 }
@@ -70,15 +70,23 @@ int populateFrame(Frame* frame){
     frame->control = processedBuffer[1];
     frame->bcc1 = processedBuffer[2];
 
-    if (frame->bcc1 != (frame->address^frame->control)) return -1; //BCC1 failed!
-
+    if (frame->bcc1 != (frame->address^frame->control)){
+        printf("BCC1 failed!\n");
+        return -1; //BCC1 failed!
+    } 
+        
+    
     if (processedBufferSize == 3) return processedBufferSize; //Control frame
 
-    printf("RECIVED INFO FRAME\n");
-    frame->infoFrame.dataSize = processedBufferSize - 2;
+    frame->infoFrame.dataSize = processedBufferSize - 4; 
     
-    uint8_t bcc = calculate_bcc(3, frame->infoFrame.dataSize);
-    if (bcc != processedBuffer[processedBufferSize - 1]) return -2; //BCC2 failed!
+    uint8_t bcc = calculate_bcc(processedBuffer, 3, frame->infoFrame.dataSize);
+
+    if (bcc != processedBuffer[processedBufferSize - 1]){
+        printf("BCC2 failed!\n");
+        printf("EXPECTED BCC2: %02x\n", processedBuffer[processedBufferSize - 1]);
+        return -1; //BCC2 failed!
+    }
     
     for (int i = 0; i < frame->infoFrame.dataSize; i++) {
         frame->infoFrame.data[i] = processedBuffer[i + 3];
@@ -89,16 +97,16 @@ int populateFrame(Frame* frame){
 
 int start_found = 0;
 int read_frame(Frame* frame) {
-    
     char byte;
 
     int readcount = readByte(&byte);
     if(readcount == 0) return 0; // No byte read
 
-    printf("Read byte: %x\n", byte);
+    //printf("Read byte: %02x\n", byte);
 
     if (byte == FLAG) {
         if (!start_found) {
+            
             // Start of frame
             start_found = 1;
             bufferSize = 0;
@@ -114,22 +122,28 @@ int read_frame(Frame* frame) {
             printf("Frame too large!\n");
             return -2;  // Error: frame exceeds buffer size
         }
+        return 1;  // Byte read
     }  
 
     return 0;
 }
-    
+
+int writtenFrames = 0;
 int write_frame(Frame frame) {
     bufferSize = 0;
-    
+    writtenFrames++;
+
     buffer[bufferSize++] = 0; // Start flag
     buffer[bufferSize++] = frame.address;
     buffer[bufferSize++] = frame.control;
     buffer[bufferSize++] = frame.bcc1;
 
+    printf("Sending control %02x\n", frame.control);
+
     //Add data if it's an I frame
     if (frame.infoFrame.dataSize > 0) {
         memcpy(buffer + bufferSize, frame.infoFrame.data, frame.infoFrame.dataSize);
+        bufferSize += frame.infoFrame.dataSize;
         buffer[bufferSize++] = frame.infoFrame.bcc2;
     }
 
@@ -142,16 +156,21 @@ int write_frame(Frame frame) {
 
     const char *bytes = processedBuffer;
 
-    for (size_t i = 0; i < bufferSize; i++)
+/*
+    for (size_t i = 0; i < processedBufferSize; i++)
     {
         printf("Writing Byte %02x\n",bytes[i]);
     }
-    
+*/
 
-    return writeBytes(bytes, processedBufferSize);;
+    writtenFrames++;
+    int temp = writeBytes(bytes, processedBufferSize);
+    //printf("Sending frame size: %d\n", temp);
+    
+    return temp;
 }
 
-Frame create_frame(uint8_t type, uint8_t address, const unsigned char* packet, int packetSize) {
+Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize) {
     Frame frame = {0};
     if (packetSize > sizeof(frame.infoFrame.data)){
         printf("[CRITICAL ERROR] Packet too large!\n");
@@ -165,7 +184,7 @@ Frame create_frame(uint8_t type, uint8_t address, const unsigned char* packet, i
     if (packetSize > 0) {
         frame.infoFrame.dataSize = packetSize;
         memcpy(frame.infoFrame.data, packet, packetSize);
-        frame.infoFrame.bcc2 = calculate_bcc(0, packetSize);
+        frame.infoFrame.bcc2 = calculate_bcc(packet, 0, packetSize);
     }    
     
     return frame;

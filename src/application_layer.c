@@ -52,7 +52,6 @@ Result getControlPacket(int control_field, const char *file_name, long file_size
     Result r;
     r.pointer = packet;
     r.value = packet_length;
-
     return r;
 }
 
@@ -128,10 +127,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char* buffer = (unsigned char*)malloc(buffer_size * sizeof(unsigned char));
 
         Result r = getControlPacket(1, file_name, file_size);
-        //llwrite(r.pointer, r.value); smh is breaking here
-
-                        FILE *ftest;
-                        ftest = fopen("penguin-rec-test.gif", "wb");
+        
+        printf("Sending control packet [1]\n");
+        llwrite(r.pointer, r.value); //smh is breaking here
+        
+        FILE *ftest;    
+        ftest = fopen("penguin-rec-test.gif", "wb");
 
         int sequence = 0;
         int actual_size;
@@ -157,6 +158,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }   
 
         r = getControlPacket(3, file_name, file_size);
+        printf("Sending control packet [3]\n");
         llwrite(r.pointer, r.value);
 
         fclose(fptr);
