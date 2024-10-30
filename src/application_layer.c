@@ -71,7 +71,7 @@ Result getDataPacket(unsigned char *buf, int buf_size, int sequence_number)
     return r;
 }
 
-int parseDataPacket(unsigned char *packet, int size, FILE* fptr)
+int parsePacket(unsigned char *packet, int size, FILE* fptr)
 {
     switch (packet[0])
     {
@@ -190,7 +190,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             if(readsize>=0){
                 if(buffer[2]){
                     
-                    if(parseDataPacket(buffer, readsize, fptr)==3) END = TRUE;
+                    if(parsePacket(buffer, readsize, fptr)==3) END = TRUE;
                     
                 }
             }
