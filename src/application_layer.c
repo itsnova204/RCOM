@@ -56,7 +56,7 @@ Result getControlPacket(int control_field, const char *file_name, long file_size
 }
 
 Result getDataPacket(unsigned char *buf, int buf_size, int sequence_number)
-{
+{   
     unsigned char *packet = (unsigned char*) malloc((buf_size + 4) * sizeof(char));
     int index=0;
     packet[index++] = 2;
@@ -71,7 +71,7 @@ Result getDataPacket(unsigned char *buf, int buf_size, int sequence_number)
     return r;
 }
 
-int parsePacket(unsigned char *packet, int size, FILE* fptr)
+int parseDataPacket(unsigned char *packet, int size, FILE* fptr)
 {
     switch (packet[0])
     {
@@ -141,8 +141,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         FILE *ftest;    
         ftest = fopen("penguin-rec-test.gif", "wb");
 
-
-        //TODO actually read a file
         int sequence = 0;
         int actual_size;
         while((actual_size = fread(buffer,1,  buffer_size, fptr)) > 0){
@@ -178,7 +176,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     else{
         FILE* fptr;
         fptr = fopen(file_name, "wb");
-        int result;
+        int readsize;
         unsigned char* buffer = (unsigned char*)malloc(MAX_PACKET_SIZE * sizeof(unsigned char));
 
         int END = FALSE;
@@ -186,12 +184,23 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         //TODO handle control packets
 
         while(!END){
-            result = llread(buffer);
-            if(result>=0){
-                if(parsePacket(buffer, result, fptr)==3) END = TRUE;
+            readsize = llread(buffer);
+            printf("readsize = %d\n",readsize);
+            printf("buffer[0] = %x\n",buffer[0]);
+            if(readsize>=0){
+                if(buffer[2]){
+                    
+                    if(parseDataPacket(buffer, readsize, fptr)==3) END = TRUE;
+                    
+                }
             }
         }
-        fclose(fptr);
+
+        if (fclose(fptr) == 0){
+           printf("File closed\n");
+        }
+        
+        
     }
 
     //llclose cant call it here! it must be before fclose

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "link_layer.h"
 #include "serial_port.h"
@@ -326,7 +327,9 @@ int llread(unsigned char *packet){
         printf("expected_control = %x\n",expected_control);
 
         if(frame.control == 0x00 || frame.control == 0x80){
-            if (frame.control == expected_control){
+            if (frame.control == expected_control){ //SUCESS
+                memcpy(packet, frame.infoFrame.data, frame.infoFrame.dataSize);
+                
                 //send RR
                 frame_number = frame_number == 0 ? 1 : 0;
                 uint8_t rr = frame_number == 0 ? RR0 : RR1;
