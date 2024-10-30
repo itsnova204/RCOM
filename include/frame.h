@@ -6,7 +6,7 @@
 #define ESCAPE      0x7D
 #define XOROCTET    0x20
 
-#define MAX_DATA_SIZE 256 //TODO: Change this value
+#define MAX_DATA_SIZE 1024 //TODO: Change this value
 
 #define SET 0x03
 #define UA 0x07
