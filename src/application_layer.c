@@ -188,10 +188,30 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             printf("\n");
 
-            if(llwrite(r.pointer, r.value) < 0)
-            {
-                printf("llwrite couldnt send packet %d\n", sequence);
-                exit(-1);
+            int send = TRUE;
+            while(send){
+                switch (llwrite(r.pointer, r.value))
+                {
+                case -1: // big error
+                    printf("llwrite couldnt send packet %d\n", sequence);
+                    exit(-1);
+                    break;
+                case -2: // REJ received so retransmission
+                    printf("retransmitting packet %d\n", sequence);
+                case -11: // ignoring?
+                    send = FALSE;
+                    break;
+                case -12: // ignoring?
+                    send = FALSE;
+                    break;
+                case -13: // ignoring?
+                    send = FALSE;
+                    break;
+                default:
+                    printf("undefined behavior of llwrite!\n");
+                    exit(-1);
+                    break;
+                }
             }
             sequence++;
         }   
