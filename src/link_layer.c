@@ -480,5 +480,12 @@ int llclose(int showStatistics)
         
     }
 
+    // printing simple statistics
+    if(showStatistics){
+        printf("Number of frames: %d\n", number_of_frames);
+        printf("Number of retransmissions: %d\n", number_of_retransmissions);
+        printf("Number of timeouts: %d\n", number_of_timeouts);
+    }
+
     return -1;
 }

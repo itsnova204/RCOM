@@ -86,12 +86,17 @@ Result getDataPacket(unsigned char *buf, int buf_size, int sequence_number)
 
 int parsePacket(unsigned char *packet, int size, FILE* fptr)
 {
+    int tmp;
     switch (packet[0])
     {
     case 1:
+        for(int i=0;i<8;i++){
+            R_FILE_SIZE = R_FILE_SIZE * 256 + packet[3+i];
+        }
         printf("received file size is suppoosed to be %ld bytes\n", R_FILE_SIZE);
 
-        int tmp = packet[12];
+        tmp = packet[12]; // in our case tmp (length of saved information L1 or L2)
+                          // can be hardcoded bc we previous info avays takes same amount of place
         for(int i=0;i<tmp;i++){
             R_FILE_NAME[i] = packet[13+i];
         }
@@ -112,13 +117,14 @@ int parsePacket(unsigned char *packet, int size, FILE* fptr)
         }
 
         char file_name[50];
-        int tmp = packet[12];
+        tmp = packet[12];
         for(int i=0;i<tmp;i++){
             file_name[i] = packet[13+i];
         }
 
         if(file_size != R_FILE_SIZE){
             printf("file size from 1st and last contr. packet is different\n");
+            printf("%ld vs. %ld\n", file_size, R_FILE_SIZE);
             exit(-1);
         }
 
@@ -184,7 +190,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             if(llwrite(r.pointer, r.value) < 0)
             {
-                printf("llwrite couldnt send packet 3%d\n", sequence);
+                printf("llwrite couldnt send packet %d\n", sequence);
                 exit(-1);
             }
             sequence++;
@@ -214,6 +220,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             result = llread(buffer);
             if(result>=0){
                 if(parsePacket(buffer, result, fptr)==3) END = TRUE;
+            }
+            if(result<0){
+                printf("llread returned error\n");
+                exit(-1);
             }
         }
         fclose(fptr);
