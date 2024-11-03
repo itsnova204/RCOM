@@ -383,8 +383,8 @@ int llread(unsigned char *packet) {
 ////////////////////////////////////////////////
 //TODO implement statistics
 int llclose(int showStatistics) {
-    int alarmCount = 0;
-    int alarmEnabled = FALSE;
+    alarmEnabled = FALSE;
+    alarmCount = 0;
     printf("Initiating disconnect sequence as %d\n", role);
 
     if (role == 116) {
@@ -422,10 +422,12 @@ int llclose(int showStatistics) {
                     // Received DISC from receiver, send UA as acknowledgment
                     printf("Received DISC frame, sending UA\n");
                     Frame frameUA = create_frame(UA, TX_ADDR, NULL, 0);
+                    
                     if (write_frame(frameUA) < 0) {
                         printf("Error writing UA frame\n");
                         return -1;
                     }
+                    
 
                     printf("Connection closed successfully\n");
                     break;
@@ -442,14 +444,15 @@ int llclose(int showStatistics) {
 
     if (role == 114) {
         Frame frameDISC = {0};
-
+        alarm(timeout);
+        alarmEnabled = TRUE;
         while (alarmCount <= retries) {
 
             if (alarmEnabled == FALSE) {
                 alarm(timeout);
                 alarmEnabled = TRUE;
                 alarmCount++;
-
+                printf("Waiting for DISC frame\n");
             }
 
             int readout = read_frame(&frameDISC);
@@ -484,8 +487,6 @@ int llclose(int showStatistics) {
                 return -1;
             }
 
-            // Reset alarmEnabled for next retry cycle
-            alarmEnabled = FALSE;
         }
     }
 
