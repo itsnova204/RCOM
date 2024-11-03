@@ -72,6 +72,15 @@ int populateFrame(Frame* frame){
 
     if (frame->bcc1 != (frame->address^frame->control)){
         printf("BCC1 failed!\n");
+        printf("CALCULATED BCC1: %02x\n", frame->address^frame->control);
+        printf("address: %02x\n", frame->address);
+        printf("control: %02x\n", frame->control);
+
+        printf("buffer 0 %02x\n", buffer[0]);
+        printf("buffer 1 %02x\n", buffer[1]);
+        printf("buffer 2 %02x\n", buffer[2]);
+
+        printf("EXPECTED BCC1: %02x\n", frame->bcc1);
         return -1; //BCC1 failed!
     } 
         
@@ -179,6 +188,10 @@ Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize) 
     frame.address = address;
     frame.control = type;
     frame.bcc1 = frame.address ^ frame.control;
+    
+    printf("Address: %02x\n", frame.address);
+    printf("Control: %02x\n", frame.control);
+    printf("BCC1: %02x\n", frame.bcc1);
 
     if (packetSize > 0) {
         frame.infoFrame.dataSize = packetSize;
