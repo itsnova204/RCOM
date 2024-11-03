@@ -14,7 +14,7 @@ int bufferSize = 0;
 unsigned char buffer[BUFSIZE] = {0};
 
 int processedBufferSize = 0;
-char processedBuffer[BUFSIZE] = {0};
+unsigned char processedBuffer[BUFSIZE] = {0};
 
 void stuffing() {
     processedBufferSize = 0;
@@ -55,7 +55,7 @@ void destuffing() {
     }
 }
 
-uint8_t calculate_bcc(char* bccbuff, int start, int len) {
+uint8_t calculate_bcc(const unsigned char* bccbuff, int start, int len) {
     uint8_t bcc = 0;
     for (int i = start; i < start + len; i++) {
         bcc ^= bccbuff[i];  // XOR each byte
@@ -63,7 +63,9 @@ uint8_t calculate_bcc(char* bccbuff, int start, int len) {
     return bcc;
 }
 
+int bccfailed = 0;
 int populateFrame(Frame* frame){
+    bccfailed = 0;
     destuffing();
 
     frame->address = processedBuffer[0];
@@ -72,15 +74,10 @@ int populateFrame(Frame* frame){
 
     if (frame->bcc1 != (frame->address^frame->control)){
         printf("BCC1 failed!\n");
-        printf("CALCULATED BCC1: %02x\n", frame->address^frame->control);
-        printf("address: %02x\n", frame->address);
-        printf("control: %02x\n", frame->control);
+        printf("CALCULATED BCC1: %02x, %02x - %02x\n", frame->address^frame->control, frame->address, frame->control);
+        printf("RECIVED BCC1: %02x\n", frame->bcc1);
 
-        printf("buffer 0 %02x\n", buffer[0]);
-        printf("buffer 1 %02x\n", buffer[1]);
-        printf("buffer 2 %02x\n", buffer[2]);
-
-        printf("EXPECTED BCC1: %02x\n", frame->bcc1);
+        bccfailed=1;
         return -1; //BCC1 failed!
     } 
         
@@ -95,6 +92,7 @@ int populateFrame(Frame* frame){
         printf("BCC2 failed!\n");
         printf("CALCULATED BCC2: %02x\n", bcc);
         printf("EXPECTED BCC2: %02x\n", (uint8_t)processedBuffer[processedBufferSize - 1]);
+        bccfailed=1;
         return -1; //BCC2 failed!
     }
     
@@ -102,6 +100,7 @@ int populateFrame(Frame* frame){
         frame->infoFrame.data[i] = processedBuffer[i + 3];
     }
 
+    bccfailed=0;
     return processedBufferSize;
 }
 
@@ -114,13 +113,36 @@ int read_frame(Frame* frame) {
 
     //printf("Read byte: %02x\n", byte);
 
+    if(bccfailed == 1){
+        if(byte == 0x03 || byte == 0x01){
+            printf("######################################################\n######################################################\n######################################################\n######################################################\n######################################################\n######################################################\n");
+            printf("VERY LIKELY FLAG DESYNC, fixing\n");
+            memset(buffer, 0, sizeof(buffer));
+            memset(processedBuffer, 0, sizeof(processedBuffer));
+            start_found = 1;
+            bufferSize = 0;
+
+            bccfailed = 0;
+
+            buffer[bufferSize++] = byte;
+            printf("Read byte: %02x\n", byte);
+            return 1;  // Byte read
+        }
+        bccfailed = 0;
+    }
+
     if (byte == FLAG) {
         if (!start_found) {
             
             // Start of frame
+            memset(buffer, 0, sizeof(buffer));
+            memset(processedBuffer, 0, sizeof(processedBuffer));
             start_found = 1;
             bufferSize = 0;
         } else {
+            if(bufferSize < 2){
+                return 1;
+            }
             // End of frame
             start_found = 0;
             return populateFrame(frame);
@@ -162,23 +184,14 @@ int write_frame(Frame frame) {
     processedBuffer[0] = FLAG;
     processedBuffer[processedBufferSize - 1] = FLAG;
 
-    const char *bytes = processedBuffer;
+    int temp = writeBytes(processedBuffer, processedBufferSize);
 
-    /*
-        for (size_t i = 0; i < processedBufferSize; i++)
-        {
-            printf("Writing Byte %02x\n",bytes[i]);
-        }
-    */
-
-    writtenFrames++;
-    int temp = writeBytes(bytes, processedBufferSize);
-    //printf("Sending frame size: %d\n", temp);
-    
+    printf("BCC2 %02x\n", frame.infoFrame.bcc2);
+    printf("SENT!\n");
     return temp;
 }
 
-Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize) {
+Frame create_frame(uint8_t type, uint8_t address, const unsigned char* packet, int packetSize) {
     Frame frame = {0};
     if (packetSize > sizeof(frame.infoFrame.data)){
         printf("[CRITICAL ERROR] Packet too large!\n");

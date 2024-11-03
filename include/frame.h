@@ -61,6 +61,6 @@ typedef struct {
 
 
 
-Frame create_frame(uint8_t type, uint8_t address, char* packet, int packetSize);
+Frame create_frame(uint8_t type, uint8_t address, const unsigned char* packet, int packetSize);
 int write_frame(Frame frame);
 int read_frame(Frame *frame);

@@ -54,6 +54,7 @@ int llopen(LinkLayer connectionParameters){
     int alarmCount = 0;
 
     role = connectionParameters.role;
+    printf("Opening connection as %d\n", role);
     timeout = connectionParameters.timeout;
     retries = connectionParameters.nRetransmissions;
 
@@ -145,136 +146,85 @@ int llwritecalls = 0;
 //return -13 recived DISC
 int llwrite(const unsigned char *buf, int bufSize) {
     printf("################# sending I frame %d ######################\n", llwritecalls++);
-    printf("frame_number = %x\n", frame_number);
-    char* frameBuf = (char*)buf;
-
+    number_of_frames++;
+    
     uint8_t control = frame_number == 0 ? 0x00 : 0x80;
-    latestFrame = create_frame(control, TX_ADDR, frameBuf, bufSize);
-        
+    latestFrame = create_frame(control, TX_ADDR, buf, bufSize);
+
     int bytesWritten = 0;
     Frame ackFrame = {0};
-
     int alarmCount = 0;
-    
-    alarm(timeout); 
-    alarmEnabled = TRUE;
-    bytesWritten = write_frame(latestFrame);  // frameNumber = 0 or 1 in Stop-and-Wait
 
-    if (bytesWritten < 0) {
-        printf("Error writing to serial port");
-        return -1;  // Serial port write error
-    }
-
+    int retransmit = 0;
     while (alarmCount <= retries) {
-        if (alarmEnabled == FALSE) {
-            printf("Waiting for acknowledgment TIMEOUT\n");
-            alarm(timeout); 
-            alarmEnabled = TRUE;
-            alarmCount++;
-            
-            // Retransmit the last data frame
-            bytesWritten = write_frame(latestFrame);  // frameNumber = 0 or 1 in Stop-and-Wait
-            
-            if (bytesWritten < 0) {
-                printf("Error writing to serial port");
-                return -1;  // Serial port write error
+        // Send the frame
+        bytesWritten = write_frame(latestFrame);
+
+        if (bytesWritten < 0) {
+            printf("Error writing to serial port\n");
+            return -1;  // Serial port write error
+        }
+
+        // Set the alarm for timeout
+        alarm(timeout);
+        alarmEnabled = TRUE;
+        retransmit = 0;
+
+        // Wait for acknowledgment
+        while (alarmEnabled) {
+            int readout = read_frame(&ackFrame);
+
+            if (readout < 0) {
+                printf("Error reading frame BCC\n");
+                continue;  
+
+            } else if (readout == 0) {
+                continue;  
             }
+
+            if (readout == 1) {
+                continue;  
+            }
+
+            if (ackFrame.control == (frame_number == 0 ? RR1 : RR0)) {
+                // Correct ACK received, advance to the next frame
+                frame_number = 1 - frame_number;  // Toggle between 0 and 1
+                return bytesWritten;
+            } else if (ackFrame.control == (frame_number == 0 ? REJ1 : REJ0)) {
+                // Wrong ACK received, advance to the next frame
+                printf("REJ received, accepting tho\n");
+                frame_number = 1 - frame_number;  // Toggle between 0 and 1
+                return bytesWritten;
+            }else if (ackFrame.control == (frame_number == 0 ? REJ0 : REJ1)) {
+                // REJ received, retransmit immediately
+                printf("REJ received 1, retransmitting\n");
+                number_of_retransmissions++;
+                retransmit = 1;
+                break;  // Exit inner loop to retransmit without counting as a retry
+            } else if (ackFrame.control == (frame_number == 0 ? REJ1 : REJ0)){
+                // REJ received, retransmit immediately
+                frame_number = 1 - frame_number;
+                printf("REJ received 2, retransmitting\n");
+                number_of_retransmissions++;
+                retransmit = 1;
+                break;  // Exit inner loop to retransmit without counting as a retry
+            }
+            
         }
 
-        // Wait for acknowledgment (RR or REJ)
-        int readout = read_frame(&ackFrame);
-        if (readout < 0) {
-            printf("Error reading frame readout < 0\n");
-            continue; //Ignore wrong BCCs
-        }
-        if (readout == 0) {
+        if(retransmit == 1){
             continue;
         }
-        if (readout < 3) { // currently reading
-            continue;
-        }
-        
-        if (ackFrame.infoFrame.dataSize > 0) {
-            printf("Received data, expecting ack\n");
-        }
-        
-        switch (ackFrame.control) {
-            case RR0:
-                if (frame_number == 1) { //success
-                    printf("Frame received OK\n");
-                    frame_number = 0;
-                    return bytesWritten;
-                } else { //error, retransmit
-                    continue;
-                }            
-                break;
+        // Timeout occurred, increment retry count
+        alarmCount++;
+        alarmEnabled = FALSE;  // Reset alarm flag for the next loop
 
-            case RR1:
-                if (frame_number == 0) { //success
-                    printf("Frame received OK\n");
-                    frame_number = 1;
-                    return bytesWritten;
-                } else { //error, retransmit
-                    continue;
-                }            
-                break;
-
-            case REJ0:
-                printf("REJ received, RETRANSMITTING\n");
-                alarmEnabled = FALSE;
-                alarmCount = 0;
-
-                number_of_retransmissions++;
-
-                //retransmit the last frame
-                bytesWritten = write_frame(latestFrame);
-                if (bytesWritten < 0) {
-                    printf("Error writing to serial port");
-                    return -1; 
-                }
-                continue;
-
-            case REJ1:
-                printf("REJ received, RETRANSMITTING\n");
-                alarmEnabled = FALSE;
-                alarmCount = 0;
-
-                number_of_retransmissions++;
-
-                //retransmit the last frame
-                bytesWritten = write_frame(latestFrame);
-                if (bytesWritten < 0) {
-                    printf("Error writing to serial port");
-                    return -1; 
-                }
-                continue;
-
-            case SET: //received SET frame
-                printf("SET frame received in middle of transmission! ABORTING AND RESETTING EVERYTHING\n");
-                Frame frameUA = create_frame(UA, RX_ADDR, NULL, 0);
-                if (write_frame(frameUA) != 0) {
-                    printf("Error writing frame\n");
-                    return -1;
-                }
-                return -11;
-
-            case UA:
-                printf("UA frame received in middle of transmission! Ignoring\n");
-                return -12;
-
-            case DISC: //received disconnect, close connection
-                return -13;
-
-            default:
-                printf("Unknown control frame received: %d\n", ackFrame.control);
-                break;
-        }
+        printf("Timeout waiting for ACK, retransmitting...\n");
     }
-    
-    printf("Maximum retries reached, giving up.\n");
-    return -1; //timeout
-}
 
+    printf("Maximum retries reached. Transmission failed.\n");
+    return -1;  // This line only executes if retries exceed the limit
+}
 
 ////////////////////////////////////////////////
 // LLREAD
@@ -284,6 +234,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
 //return >0 if it read a frame
 int llreadcalls = 0;
 int llread(unsigned char *packet) {
+    number_of_frames++;
     printf("################# Reading I frame %d ######################\n", llreadcalls++);
     Frame frame = {0};
     int alarmCount = 0;
@@ -297,7 +248,7 @@ int llread(unsigned char *packet) {
         if (alarmEnabled == FALSE) {
             alarm(timeout); 
             alarmEnabled = TRUE;
-            printf("Waiting for frame TIMEOUT\n");
+            printf("Waiting for frame TIMEOUT %d\n", alarmCount);
             alarmCount++;
         }
 
@@ -307,23 +258,23 @@ int llread(unsigned char *packet) {
             continue;
         }
 
-/*
-        if (readOutput < 0) { // BCC failed, send REJ
+        if(readOutput == -1){
+            printf("Wrong bcc rejcting\n");
             uint8_t rej = frame_number == 0 ? REJ0 : REJ1;
             Frame frameREJ = create_frame(rej, RX_ADDR, NULL, 0);
-            if (write_frame(frameREJ) != 0) {
-                printf("Error writing REJ frame BCC\n");
+            number_of_retransmissions++;
+
+            if (write_frame(frameREJ) <= 0) {
+                printf("Error writing REJ frame Wrong fn\n");
                 return -1;
             }
-            continue;  // Retry after sending REJ
-        }
-*/
-        if(readOutput < 0){
+            alarmEnabled = FALSE;
+            alarmCount = 0;
             continue;
         }
 
 
-        if (readOutput < 3) { // Frame not complete, keep reading
+        if (readOutput == 1) { // Frame not complete, keep reading
             continue;
         }
 
@@ -332,6 +283,7 @@ int llread(unsigned char *packet) {
             printf("Address mismatch\n");
             uint8_t rej = frame_number == 0 ? REJ0 : REJ1;
             Frame frameREJ = create_frame(rej, RX_ADDR, NULL, 0);
+            number_of_retransmissions++;
             if (write_frame(frameREJ) <= 0) {
                 printf("Error writing REJ frame ADDR\n");
                 return -1;
@@ -348,6 +300,7 @@ int llread(unsigned char *packet) {
                 frame_number = frame_number == 0 ? 1 : 0;
                 uint8_t rr = frame_number == 0 ? RR0 : RR1;
 
+                printf("Received frame %d, sending RR %02x\n", frame_number, rr);
                 Frame frameRR = create_frame(rr, RX_ADDR, NULL, 0);
                 if (write_frame(frameRR) <= 0) {
                     printf("Error writing RR frame\n");
@@ -355,12 +308,15 @@ int llread(unsigned char *packet) {
                 }
                 return frame.infoFrame.dataSize;  // Success, return data size
             } else {
-                // Unexpected frame, send REJ
-                printf("Unexpected frame, sending REJ\n");
-                uint8_t rej = frame_number == 0 ? REJ0 : REJ1;
-                Frame frameREJ = create_frame(rej, RX_ADDR, NULL, 0);
-                if (write_frame(frameREJ) <= 0) {
-                    printf("Error writing REJ frame Wrong fn\n");
+                memcpy(packet, frame.infoFrame.data, frame.infoFrame.dataSize);
+                
+                // Send RR (Ready to Receive)
+                uint8_t rr = frame_number == 0 ? RR0 : RR1;
+
+                printf("Received frame %d, sending RR %02x\n", frame_number, rr);
+                Frame frameRR = create_frame(rr, RX_ADDR, NULL, 0);
+                if (write_frame(frameRR) <= 0) {
+                    printf("Error writing RR frame\n");
                     return -1;
                 }
                 continue;
@@ -426,83 +382,120 @@ int llread(unsigned char *packet) {
 // LLCLOSE
 ////////////////////////////////////////////////
 //TODO implement statistics
-int llclose(int showStatistics) 
-{
+int llclose(int showStatistics) {
     int alarmCount = 0;
     int alarmEnabled = FALSE;
+    printf("Initiating disconnect sequence as %d\n", role);
 
-    if (role == LlTx){
-
-        
+    if (role == 116) {
         Frame frameDISC = {0};
-        
-        while (alarmCount <= retries){ //wait for DISC rx
-            if (alarmEnabled == FALSE){
-                alarm(timeout); 
-                alarmEnabled = TRUE;
-                alarmCount++;
 
-                Frame frame = create_frame(DISC, TX_ADDR, NULL, 0);
-                if (write_frame(frame) != 0){
-                    printf("Error writing frame\n");
-                    return -1;
-                }
-            }
-
-            if(read_frame(&frameDISC) != 0){ 
-                printf("Error reading frame\n");
-                return -1;
-            }
-
-            if(frameDISC.control != DISC && frameDISC.control == RX_ADDR){
-                Frame frameUA = create_frame(UA, TX_ADDR, NULL, 0);
-                if (write_frame(frameUA) != 0){
-                    printf("Error writing frame\n");
-                    return -1;
-                }
-                int clstat = closeSerialPort();
-                return clstat;
-            }
-        }
-
-
-    }
-
-    if (role == LlRx){
-
-        Frame frameUA = {0};
         while (alarmCount <= retries) {
-            if (alarmEnabled == FALSE){
-                alarm(timeout); 
+
+            if (alarmEnabled == FALSE) {
+                alarm(timeout);
                 alarmEnabled = TRUE;
                 alarmCount++;
-                
-                Frame frameDISC = {0};
-                if (write_frame(frameDISC) != 0){
-                    printf("Error writing frame\n");
+
+                // Send DISC to receiver
+                printf("Sending DISC frame\n");
+                Frame frame = create_frame(DISC, TX_ADDR, NULL, 0);
+                if (write_frame(frame) < 0) {
+                    printf("Error writing DISC frame\n");
                     return -1;
                 }
             }
-            
-            if(read_frame(&frameUA) != 0){ 
+
+            int readout = read_frame(&frameDISC);
+
+            if (readout == 0 || readout == 1) {
+                continue;
+            }
+
+            if (readout < 0) {
+                printf("Error bcc on disc\n");
+                continue;
+            }
+
+            if (readout > 1) { 
+                if (frameDISC.control == DISC && frameDISC.address == RX_ADDR) {
+                    // Received DISC from receiver, send UA as acknowledgment
+                    printf("Received DISC frame, sending UA\n");
+                    Frame frameUA = create_frame(UA, TX_ADDR, NULL, 0);
+                    if (write_frame(frameUA) < 0) {
+                        printf("Error writing UA frame\n");
+                        return -1;
+                    }
+
+                    printf("Connection closed successfully\n");
+                    break;
+                }
+            } else if (read_frame(&frameDISC) < 0) {
                 printf("Error reading frame\n");
                 return -1;
             }
 
-            if(frameUA.control == DISC && frameUA.address == TX_ADDR){
-                int clstat = closeSerialPort();
-                return clstat;
-            }
+            // Reset alarmEnabled for next retry cycle
+            alarmEnabled = FALSE;
         }
-        
     }
 
-    // printing simple statistics
-    if(showStatistics){
+    if (role == 114) {
+        Frame frameDISC = {0};
+
+        while (alarmCount <= retries) {
+
+            if (alarmEnabled == FALSE) {
+                alarm(timeout);
+                alarmEnabled = TRUE;
+                alarmCount++;
+
+            }
+
+            int readout = read_frame(&frameDISC);
+
+            if (readout == 0 || readout == 1) {
+                continue;
+            }
+
+            if (readout < 0) {
+                printf("Error bcc on disc\n");
+                continue;
+            }
+
+            if (readout > 1) { 
+                if (frameDISC.control == DISC) {
+                    // Received DISC from receiver, send UA as acknowledgment
+                    printf("Received DISC frame, sending DISC\n");
+                    Frame frameDISC = create_frame(DISC, RX_ADDR, NULL, 0);
+                    if (write_frame(frameDISC) < 0) {
+                        printf("Error writing DISC frame\n");
+                        return -1;
+                    }
+                    
+                    
+                }
+                if (frameDISC.control == UA) {
+                    printf("Connection closed successfully\n");
+                    break;
+                }
+            } else if (read_frame(&frameDISC) < 0) {
+                printf("Error reading frame\n");
+                return -1;
+            }
+
+            // Reset alarmEnabled for next retry cycle
+            alarmEnabled = FALSE;
+        }
+    }
+
+    // Print statistics if required
+    if (showStatistics) {
         printf("Number of frames: %d\n", number_of_frames);
         printf("Number of retransmissions: %d\n", number_of_retransmissions);
         printf("Number of timeouts: %d\n", number_of_timeouts);
     }
 
-    return -1;
+    
+    return closeSerialPort();
 }
