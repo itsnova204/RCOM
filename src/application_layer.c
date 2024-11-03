@@ -207,9 +207,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 case -13: // ignoring?
                     send = FALSE;
                     break;
-                default:
-                    printf("undefined behavior of llwrite!\n");
-                    exit(-1);
+                default: // >0 so okay
+                    send = FALSE;
                     break;
                 }
             }
@@ -223,7 +222,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             exit(-1);
         }
         if(llclose(1)<0){
-            printf("smh wrong with llclose\n");
+            printf("smh wrong with tx llclose\n");
             exit(-1);
         }
         fclose(fptr);
@@ -245,6 +244,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 printf("llread returned error\n");
                 exit(-1);
             }
+        }
+        if(llclose(1)<0){
+            printf("smh wrong with rx llclose\n");
+            exit(-1);
         }
         fclose(fptr);
     }
