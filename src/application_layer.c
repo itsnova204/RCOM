@@ -18,11 +18,6 @@
 char R_FILE_NAME[50];
 long R_FILE_SIZE = 0;
 
-typedef struct {
-    int value;      // integer value
-    unsigned char *pointer;  // pointer to a character array
-} Result;
-
 Result getControlPacket(int control_field, const char *file_name, long file_size)
 {
     char C, T1, T2, L1, L2;

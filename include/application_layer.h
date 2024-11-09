@@ -15,6 +15,21 @@
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
 
-char* getInformationPacket(int control_field, char *filename, long file_size); 
+typedef struct {
+    int value;      // integer value
+    unsigned char *pointer;  // pointer to a character array
+} Result;
+
+// Creates Control packet
+// returns pointer to the packet and its size
+Result getControlPacket(int control_field, const char *file_name, long file_size);
+
+// Creates Data packet
+// returns pointer to the packet and its size
+Result getDataPacket(unsigned char *buf, int buf_size, int sequence_number);
+
+// Parses I and C packets
+// saves data from data packets into the file
+int parsePacket(unsigned char *packet, int size, FILE* fptr);
 
 #endif // _APPLICATION_LAYER_H_
