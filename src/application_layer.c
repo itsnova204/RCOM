@@ -209,7 +209,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             sequence++;
         }   
-
+        fclose(fptr);
         r = getControlPacket(3, file_name, file_size);
         if(llwrite(r.pointer, r.value) < 0)
         {
@@ -220,7 +220,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             printf("smh wrong with tx llclose\n");
             exit(-1);
         }
-        fclose(fptr);
     }
     else{
         FILE* fptr;
@@ -240,10 +239,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 exit(-1);
             }
         }
+        fclose(fptr);
         if(llclose(1)<0){
             printf("smh wrong with rx llclose\n");
             exit(-1);
         }
-        fclose(fptr);
     }
 }
